@@ -117,7 +117,23 @@ int main(int argc, char *argv[])
                 exit(1);
             }
 
-            // wysylam do kolejki od procesu polecenie i nazwe kolejki pomocniczej
+            msgbuff m;
+            m.mtype = 1;
+            strcpy(m.mtext, polecenie);
+            // wysylam do kolejki od zczytanego procesu polecenie
+            if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+            {
+                perror("Wysylanie polecenia powiodlo sie\n");
+                exit(1);
+            }
+            // oraz ID kolejki pomocniczej
+            strcpy(m.mtext, pomocnicza);
+            if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+            {
+                perror("Wysylanie nazwy kolejki pomocniczej nie powiodlo sie\n");
+                exit(1);
+            }
+
             // oczekujemy na wynik z POMOCNICZEJ kolejki - odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
             // printujemy wynik
         }
