@@ -20,6 +20,7 @@ int main(int argc, char *argv[])
 	} msgbuff;
 
 	int msgid = msgget(12, IPC_CREAT | 0640);
+	printf("ID KOLEJKI TO %d\n", msgid);
 
 	if (fork() == 0)
 	{

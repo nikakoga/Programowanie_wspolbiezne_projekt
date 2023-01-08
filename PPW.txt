@@ -1,0 +1,55 @@
+UWAGI:
+- $> - prompt (poprzedza komendy wpisywabe w terminal)
+- plik konfiguracyjny - konfig.txt
+- usr1, usr2 - robocze nazwy dwoch oddzielnych procesów - OCZYWISCIE MOGA BYC INNE DOSTEPNE W PLIKU KONFIGURACYJNYM
+- 
+
+=================================
+
+OGOLNY ZARYS
+
+1. odpalam w terminalu proces usr1 poprzez
+$>  ./projekt usr1 
+^usr1 to nazwa procesu z pliku konfiguracyjnego
+2. odpalam w drugim terminalu (DRUGIM BASZU) proces usr2 poprzez
+$> ./projekt usr2
+3. chcemy dajmy na to w procesie obslugujacym usr1 wpisac polecenie ktore ma robic usr2 - musi wtedy byc wykonany krok 2. czyli odpalenie tego procesu usr2
+
+=================================
+
+JAK MA DZIALAC PROCES OBSLUGUJACY JEDNA INSTANCJE (usr1,usr2 sialala)
+
+1. wczytuję konfigurację z pliku (o z góry znanej w programie nazwie) dla procesu podanego jako argv[1] (w przypadku '$> ./projekt usr1' argv[1] == "usr1")
+2. na podstawie tejże konfiguracji otwieram odpowiedni kanał komunikacji (kolejke fifol, kolejke komunikatow czy insze gówno)
+3. robie forka
+
+=================================
+
+PROCES GŁOWNY (fork() != 0)
+
+while(true)
+{
+   1. scanf np $> usr2 "ls ." "./kolejka_dla_tego_polecenia"
+   2. ze scanfa wyciagamy czesci polecenia (np. funkcja strtok ze standardu C)
+   3. pierwsza oznacza proces ktory ma to ogarnąć
+   4. druga oznacza polecenie jakie mamy wykonac
+   5. trzecia oznacza nazwe pliku POMOCNICZEJ kolejki fifol albo identyfikator tych innych tam - to będzie potrzebne w kroku 8
+   6. wyciągamy konfigurację dla procesu z pierwszego parametru
+   7. otwieramy kanał komunikacji dla tejże
+   8. tworzymy POMOCNICZĄ kolejkę albo inne coś dla parametru #3
+   9. wysylamy do kolejki glownej, czyli tej z konfiguracji procesu z parametru #1 (tworzona w kroku 7.) polecenie (parametr #2) oraz nazwe kolejki POMOCNICZEJ (parametr #3)
+   10. oczekujemy na wynik z POMOCNICZEJ kolejki - odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
+   11. printujemy wynik
+}
+
+=================================
+
+PROCES POTOMNY (fork() == 0)
+
+while(true)
+{
+   1. sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
+   2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
+   2. wykonuje polecenie 
+   3. wynik polecenia wpisuje do kolejki pomocniczej
+}
