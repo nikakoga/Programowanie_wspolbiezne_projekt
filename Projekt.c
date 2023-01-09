@@ -76,10 +76,34 @@ int main(int argc, char *argv[])
     {
         while (1)
         {
-            // 1. sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
+            // sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
+            msgbuff m;
+            int rozmiar_komunikatu = 0;
+            rozmiar_komunikatu = msgrcv(msgid_1, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
+            if (rozmiar_komunikatu == -1)
+            {
+                perror("Blad odbierania");
+                exit(1);
+            }
+            printf("Odebrano: %s", m.mtext);
+
             // 2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
-            // 3. wykonuje polecenie
-            // 4. wynik polecenia wpisuje do kolejki pomocniczej
+            if (rozmiar_komunikatu > 0)
+            {
+                char terminal[60];
+                strcpy(terminal, m.mtext);
+
+                char *proces;
+                char *polecenie;
+                char *pomocnicza;
+                char rozdzielacz[] = " ";
+                proces = strtok(terminal, rozdzielacz);
+                polecenie = strtok(NULL, rozdzielacz);
+                pomocnicza = strtok(NULL, rozdzielacz);
+
+                // 3. wykonuje polecenie
+                // 4. wynik polecenia wpisuje do kolejki pomocniczej
+            }
         }
 
         break;
@@ -92,10 +116,9 @@ int main(int argc, char *argv[])
             char *polecenie;
             char *pomocnicza;
             char rozdzielacz[] = " ";
-            char polecenie[60];
-            scanf("%s", polecenie);
-            char korektor[] = " ";
-            proces = strtok(polecenie, rozdzielacz);
+            char terminal[60];
+            scanf("%s", terminal);
+            proces = strtok(terminal, rozdzielacz);
             polecenie = strtok(NULL, rozdzielacz);
             pomocnicza = strtok(NULL, rozdzielacz);
 
@@ -109,7 +132,9 @@ int main(int argc, char *argv[])
                 exit(1);
             }
 
+            // ID pomocniczej kolejki
             int ID_pomocniczej_kolejki = atoi(pomocnicza);
+            // otwieram jej kanal komunikacji
             int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
             if (msgid_pomocnicza == -1)
             {
@@ -119,23 +144,28 @@ int main(int argc, char *argv[])
 
             msgbuff m;
             m.mtype = 1;
-            strcpy(m.mtext, polecenie);
-            // wysylam do kolejki od zczytanego procesu polecenie
+            strcpy(m.mtext, terminal);
+            // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
             if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
             {
                 perror("Wysylanie polecenia powiodlo sie\n");
                 exit(1);
             }
-            // oraz ID kolejki pomocniczej
-            strcpy(m.mtext, pomocnicza);
-            if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+
+            // oczekujemy na wynik z POMOCNICZEJ kolejki
+            int rozmiar_komunikatu_z_pomocniczej = 0;
+
+            rozmiar_komunikatu_z_pomocniczej = msgrcv(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
+            if (rozmiar_komunikatu_z_pomocniczej == -1)
             {
-                perror("Wysylanie nazwy kolejki pomocniczej nie powiodlo sie\n");
+                perror("Blad odbierania");
                 exit(1);
             }
-
-            // oczekujemy na wynik z POMOCNICZEJ kolejki - odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
-            // printujemy wynik
+            // odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
+            if (rozmiar_komunikatu_z_pomocniczej > 0)
+            {
+                printf("Odebrano: %s", m.mtext);
+            }
         }
         break;
     }
