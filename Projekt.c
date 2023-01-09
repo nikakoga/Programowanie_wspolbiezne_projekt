@@ -42,14 +42,15 @@ int zwroc_ID(char *user_name)
     } while (strcmp(pierwsze_slowo, user_name) != 0); // rob dopoki te lancuchy sa rozne
 
     int ID_kolejki = atoi(drugie_slowo);
+    printf("ID odczytane z pliku %d\n", ID_kolejki);
     if (ID_kolejki == 0)
     {
         perror("Nie udalo sie odczytac ID kolejki z pliku konfiguracyjnego\n");
         exit(1);
     }
 
-    return ID_kolejki;
     fclose(f_konfig);
+    return ID_kolejki;
 }
 
 int main(int argc, char *argv[])
@@ -68,7 +69,6 @@ int main(int argc, char *argv[])
         exit(1);
     }
     printf("msgid %d\n", msgid_1);
-    printf("\nJEBANE DZIALA\n");
 
     switch (fork())
     {
@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
             // sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
             msgbuff m;
             int rozmiar_komunikatu = 0;
+            printf("UWAGA BEDE SPRAWDZAU ZAPNIJ PASY\n");
             rozmiar_komunikatu = msgrcv(msgid_1, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
             if (rozmiar_komunikatu == -1)
             {
@@ -92,14 +93,18 @@ int main(int argc, char *argv[])
             {
                 char terminal[60];
                 strcpy(terminal, m.mtext);
+                printf("proces potomny terminal %s\n", terminal);
 
                 char *proces;
                 char *polecenie;
                 char *pomocnicza;
                 char rozdzielacz[] = " ";
                 proces = strtok(terminal, rozdzielacz);
+                printf("proces: %s\n", proces);
                 polecenie = strtok(NULL, rozdzielacz);
+                printf("polecenie: %s\n", proces);
                 pomocnicza = strtok(NULL, rozdzielacz);
+                printf("pomocnicza: %s\n", proces);
 
                 // 3. wykonuje polecenie
                 // 4. wynik polecenia wpisuje do kolejki pomocniczej
@@ -117,15 +122,20 @@ int main(int argc, char *argv[])
             char *pomocnicza;
             char rozdzielacz[] = " ";
             char terminal[60];
-            scanf("%s", terminal);
+            fgets(terminal, 50, stdin);
+            printf("terminal: %s\n", terminal);
             proces = strtok(terminal, rozdzielacz);
+            printf("proces: %s\n", proces);
             polecenie = strtok(NULL, rozdzielacz);
+            printf("polecenie: %s\n", polecenie);
             pomocnicza = strtok(NULL, rozdzielacz);
+            printf("pomocnicza: %s\n", pomocnicza);
 
             // wyciagamy ID konfiguracyjne dla procesu
-            ID_kolejki = zwroc_ID(proces);
+            int ID_kolejki_2 = zwroc_ID(proces);
             // otwieramy jej kanal komunikacji
-            int msgid_2 = msgget(ID_kolejki, IPC_CREAT | 0640);
+            int msgid_2 = msgget(ID_kolejki_2, IPC_CREAT | 0640);
+            printf("ID kanalu komunikacji dla tego procesu %d\n", msgid_2);
             if (msgid_2 == -1)
             {
                 perror("Blad tworzenia drugiej kolejki\n");
@@ -134,8 +144,10 @@ int main(int argc, char *argv[])
 
             // ID pomocniczej kolejki
             int ID_pomocniczej_kolejki = atoi(pomocnicza);
+
             // otwieram jej kanal komunikacji
             int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
+            printf("ID kanalu komunikacji dla pomocniczej kolejki %d\n", msgid_pomocnicza);
             if (msgid_pomocnicza == -1)
             {
                 perror("Blad tworzenia pomocniczej kolejki\n");
@@ -144,16 +156,21 @@ int main(int argc, char *argv[])
 
             msgbuff m;
             m.mtype = 1;
-            strcpy(m.mtext, terminal);
+            strcat(m.mtext, polecenie);
+            strcat(m.mtext, " ");
+            strcat(m.mtext, pomocnicza);
+            printf("tekst w m.text %s\n", m.mtext);
+
             // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
             if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
             {
-                perror("Wysylanie polecenia powiodlo sie\n");
+                perror("Wysylanie polecenia nie powiodlo sie\n");
                 exit(1);
             }
 
             // oczekujemy na wynik z POMOCNICZEJ kolejki
             int rozmiar_komunikatu_z_pomocniczej = 0;
+            printf("rozmiar komunikatu z pomocniczej %d\n", rozmiar_komunikatu_z_pomocniczej);
 
             rozmiar_komunikatu_z_pomocniczej = msgrcv(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
             if (rozmiar_komunikatu_z_pomocniczej == -1)
@@ -170,4 +187,6 @@ int main(int argc, char *argv[])
         break;
     }
     }
+
+    printf("\nJEBANE DZIALA\n");
 }
