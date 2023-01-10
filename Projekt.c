@@ -10,6 +10,34 @@
 #include <sys/msg.h>
 #include <string.h>
 #include <errno.h>
+#include <time.h>
+
+typedef struct msgbuff
+{
+    long mtype;
+    char mtext[7];
+} msgbuff;
+
+int randomint(int min, int max)
+{
+    int tmp;
+    if (max >= min)
+        max -= min;
+    else
+    {
+        tmp = min - max;
+        min = max;
+        max = tmp;
+    }
+    if (max)
+    {
+        return rand() % max + min;
+    }
+    else
+    {
+        return min;
+    }
+}
 
 int zwroc_ID(char *user_name)
 {
@@ -53,13 +81,108 @@ int zwroc_ID(char *user_name)
     return ID_kolejki;
 }
 
+void obsluz_macierzysty_proces_kolego()
+{
+    while (1)
+    {
+        char *proces;
+        char polecenie[] = "";
+        char *czesc_polecenia;
+        // char *pomocnicza;
+        char rozdzielacz[] = " ";
+        char terminal[60];
+        fgets(terminal, 50, stdin);
+        printf("terminal: %s\n", terminal);
+
+        // liczenie ile spacji jest w pliku
+        int ilosc_spacji = 0;
+        for (int i = 0; i < strlen(terminal); i++)
+        {
+            if (terminal[i] == ' ')
+            {
+                ilosc_spacji++;
+            }
+        }
+
+        printf("ilosc spacji: %d\n", ilosc_spacji);
+
+        // w petli robisz od drugiego do przedostatniego rozdzielajac spacjami ale laczac je strcatem
+        proces = strtok(terminal, rozdzielacz);
+        printf("proces: %s\n", proces);
+        for (int i = 0; i < ilosc_spacji - 1; i++)
+        {
+            czesc_polecenia = strtok(NULL, rozdzielacz);
+            strcat(polecenie, czesc_polecenia);
+        }
+
+        if (ilosc_spacji == 1) // to jest sytuacja kiedy cale polecenie to np : ls
+        {
+            strcat(polecenie, strtok(NULL, rozdzielacz));
+        }
+
+        printf("polecenie: %s\n", polecenie);
+        // pomocnicza = strtok(NULL, rozdzielacz);
+        // printf("pomocnicza: %s\n", pomocnicza);
+
+        // wyciagamy ID konfiguracyjne dla procesu
+        int ID_kolejki_2 = zwroc_ID(proces);
+        // otwieramy jej kanal komunikacji
+        int msgid_2 = msgget(ID_kolejki_2, IPC_CREAT | 0640);
+        printf("ID kanalu komunikacji dla tego procesu %d\n", msgid_2);
+        if (msgid_2 == -1)
+        {
+            perror("Blad tworzenia drugiej kolejki\n");
+            exit(1);
+        }
+        // ID pomocniczej kolejki
+        int ID_pomocniczej_kolejki = randomint(100000, 999999);
+
+        // otwieram jej kanal komunikacji
+        int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
+        printf("ID kanalu komunikacji dla pomocniczej kolejki %d\n", msgid_pomocnicza);
+        if (msgid_pomocnicza == -1)
+        {
+            perror("Blad tworzenia pomocniczej kolejki\n");
+            exit(1);
+        }
+
+        msgbuff m;
+        m.mtype = 1;
+        strcat(m.mtext, polecenie);
+        strcat(m.mtext, " ");
+        char id_str[6];
+        sprintf(id_str, "%d", ID_pomocniczej_kolejki);
+        strcat(m.mtext, id_str);
+        printf("tekst w m.text %s\n", m.mtext);
+
+        // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
+        if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+        {
+            perror("Wysylanie polecenia nie powiodlo sie\n");
+            exit(1);
+        }
+
+        // oczekujemy na wynik z POMOCNICZEJ kolejki
+        int rozmiar_komunikatu_z_pomocniczej = 0;
+        printf("rozmiar komunikatu z pomocniczej %d\n", rozmiar_komunikatu_z_pomocniczej);
+
+        rozmiar_komunikatu_z_pomocniczej = msgrcv(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
+        if (rozmiar_komunikatu_z_pomocniczej == -1)
+        {
+            perror("Blad odbierania");
+            exit(1);
+        }
+        // odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
+        if (rozmiar_komunikatu_z_pomocniczej > 0)
+        {
+            printf("Odebrano: %s", m.mtext);
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
-    typedef struct msgbuff
-    {
-        long mtype;
-        char mtext[7];
-    } msgbuff;
+    srand(time(NULL));
 
     int ID_kolejki = zwroc_ID(argv[1]);
     int msgid_1 = msgget(ID_kolejki, IPC_CREAT | 0640);
@@ -105,7 +228,7 @@ int main(int argc, char *argv[])
                 printf("polecenie: %s\n", proces);
                 // pomocnicza = strtok(NULL, rozdzielacz);
                 // printf("pomocnicza: %s\n", proces);
-                int ID_pomocniczej_kolejki = ; // srand
+                int ID_pomocniczej_kolejki = 123456; // srand
 
                 // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
                 int plik_pomocniczy = creat("wyjscie.txt", O_RDWR);
@@ -114,12 +237,12 @@ int main(int argc, char *argv[])
                     perror("Blad tworzenia pliku zrodlowego");
                     exit(1);
                 }
-                dup2(plik_pomocniczy, 1); // teraz pisze do pliku
 
                 switch (fork())
                 {
                 case 0:
                 {
+                    dup2(plik_pomocniczy, 1); // teraz pisze do pliku
                     // 3. wykonuje polecenie
 
                     break;
@@ -136,6 +259,7 @@ int main(int argc, char *argv[])
                     }
 
                     // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
+                    char wynik[] = "";
                     msgbuff m;
                     m.mtype = 1;
                     strcat(m.mtext, wynik);
@@ -157,99 +281,7 @@ int main(int argc, char *argv[])
     }
     default: // dla macierzystego
     {
-        while (1)
-        {
-            char *proces;
-            char *polecenie;
-            char *czesc_polecenia;
-            // char *pomocnicza;
-            char rozdzielacz[] = " ";
-            char terminal[60];
-            fgets(terminal, 50, stdin);
-            printf("terminal: %s\n", terminal);
-
-            // liczenie ile spacji jest w pliku
-            int ilosc_spacji = 0;
-            for (int i = 0; i < strlen(terminal); i++)
-            {
-                if (terminal[i] == " ")
-                {
-                    ilosc_spacji++;
-                }
-            }
-
-            // w petli robisz od drugiego do przedostatniego rozdzielajac spacjami ale laczac je strcatem
-            proces = strtok(terminal, rozdzielacz);
-            printf("proces: %s\n", proces);
-
-            for (int i = 0; i < ilosc_spacji - 1; i++)
-            {
-                czesc_polecenia = strtok(NULL, rozdzielacz);
-                polecenie = strcat(polecenie, czesc_polecenia);
-            }
-
-            if (ilosc_spacji == 1) // to jest sytuacja kiedy cale polecenie to np : ls
-            {
-                polecenie = strtok(NULL, rozdzielacz);
-            }
-
-            printf("polecenie: %s\n", polecenie);
-            // pomocnicza = strtok(NULL, rozdzielacz);
-            // printf("pomocnicza: %s\n", pomocnicza);
-
-            // wyciagamy ID konfiguracyjne dla procesu
-            int ID_kolejki_2 = zwroc_ID(proces);
-            // otwieramy jej kanal komunikacji
-            int msgid_2 = msgget(ID_kolejki_2, IPC_CREAT | 0640);
-            printf("ID kanalu komunikacji dla tego procesu %d\n", msgid_2);
-            if (msgid_2 == -1)
-            {
-                perror("Blad tworzenia drugiej kolejki\n");
-                exit(1);
-            }
-
-            // ID pomocniczej kolejki
-            int ID_pomocniczej_kolejki = ;
-
-            // otwieram jej kanal komunikacji
-            int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
-            printf("ID kanalu komunikacji dla pomocniczej kolejki %d\n", msgid_pomocnicza);
-            if (msgid_pomocnicza == -1)
-            {
-                perror("Blad tworzenia pomocniczej kolejki\n");
-                exit(1);
-            }
-
-            msgbuff m;
-            m.mtype = 1;
-            strcat(m.mtext, polecenie);
-            strcat(m.mtext, " ");
-            strcat(m.mtext, pomocnicza);
-            printf("tekst w m.text %s\n", m.mtext);
-
-            // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
-            if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
-            {
-                perror("Wysylanie polecenia nie powiodlo sie\n");
-                exit(1);
-            }
-
-            // oczekujemy na wynik z POMOCNICZEJ kolejki
-            int rozmiar_komunikatu_z_pomocniczej = 0;
-            printf("rozmiar komunikatu z pomocniczej %d\n", rozmiar_komunikatu_z_pomocniczej);
-
-            rozmiar_komunikatu_z_pomocniczej = msgrcv(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
-            if (rozmiar_komunikatu_z_pomocniczej == -1)
-            {
-                perror("Blad odbierania");
-                exit(1);
-            }
-            // odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
-            if (rozmiar_komunikatu_z_pomocniczej > 0)
-            {
-                printf("Odebrano: %s", m.mtext);
-            }
-        }
+        obsluz_macierzysty_proces_kolego();
         break;
     }
     }
