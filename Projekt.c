@@ -12,6 +12,30 @@
 #include <errno.h>
 #include <time.h>
 
+char *itoa(int i, char b[])
+{
+    char const digit[] = "0123456789";
+    char *p = b;
+    if (i < 0)
+    {
+        *p++ = '-';
+        i *= -1;
+    }
+    int shifter = i;
+    do
+    { // Move to where representation ends
+        ++p;
+        shifter = shifter / 10;
+    } while (shifter);
+    *p = '\0';
+    do
+    { // Move back, inserting digits as u go
+        *--p = digit[i % 10];
+        i = i / 10;
+    } while (i);
+    return b;
+}
+
 typedef struct msgbuff
 {
     long mtype;
@@ -150,9 +174,8 @@ void obsluz_macierzysty_proces_kolego()
         m.mtype = 1;
         strcat(m.mtext, polecenie);
         strcat(m.mtext, " ");
-        char id_str[6];
-        sprintf(id_str, "%d", ID_pomocniczej_kolejki);
-        strcat(m.mtext, id_str);
+        char id_str[1];
+        strcat(m.mtext, itoa(ID_pomocniczej_kolejki, id_str));
         printf("tekst w m.text %s\n", m.mtext);
 
         // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
@@ -209,7 +232,7 @@ int main(int argc, char *argv[])
                 perror("Blad odbierania");
                 exit(1);
             }
-            printf("Odebrano: %s", m.mtext);
+            printf("Odebrano: %s\n", m.mtext);
 
             // 2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
             if (rozmiar_komunikatu > 0)
