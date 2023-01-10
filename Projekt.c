@@ -37,6 +37,9 @@ int randomint(int min, int max)
     {
         return min;
     }
+
+    // z geeks for geeks
+    // rand() % (max - min + 1)) + min
 }
 
 int zwroc_ID(char *user_name)
@@ -220,21 +223,21 @@ int main(int argc, char *argv[])
 
                 char *proces;
                 char *polecenie;
-                // char *pomocnicza;
+                char *pomocnicza;
                 char rozdzielacz[] = " ";
                 proces = strtok(terminal, rozdzielacz);
                 printf("proces: %s\n", proces);
                 polecenie = strtok(NULL, rozdzielacz);
                 printf("polecenie: %s\n", proces);
-                // pomocnicza = strtok(NULL, rozdzielacz);
-                // printf("pomocnicza: %s\n", proces);
-                int ID_pomocniczej_kolejki = 123456; // srand
+                pomocnicza = strtok(NULL, rozdzielacz);
+                printf("pomocnicza: %s\n", proces);
+                int ID_pomocniczej_kolejki = atoi(pomocnicza);
 
                 // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
                 int plik_pomocniczy = creat("wyjscie.txt", O_RDWR);
                 if (plik_pomocniczy == -1)
                 {
-                    perror("Blad tworzenia pliku zrodlowego");
+                    perror("Blad tworzenia pliku na wynik\n");
                     exit(1);
                 }
 
@@ -242,7 +245,7 @@ int main(int argc, char *argv[])
                 {
                 case 0:
                 {
-                    dup2(plik_pomocniczy, 1); // teraz pisze do pliku
+                    dup2(plik_pomocniczy, 1); // teraz pisze do pliku zamiast na wyjscie
                     // 3. wykonuje polecenie
 
                     break;
@@ -250,6 +253,22 @@ int main(int argc, char *argv[])
 
                 default:
                 {
+                    // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
+                    int rozmiar = 1000;
+                    char *wynik;
+                    int ilosc_przeczytanych_bajtow = 0;
+                    char tablica_na_przeczytane_litery[rozmiar];
+
+                    while ((ilosc_przeczytanych_bajtow = read(plik_pomocniczy, wynik, rozmiar)) > 0)
+                    {
+                        strcpy(wynik, tablica_na_przeczytane_litery);
+                    }
+
+                    if (ilosc_przeczytanych_bajtow == -1)
+                    {
+                        printf("Blad czytania pliku z wynikiem\n");
+                    }
+
                     // 4. wynik polecenia wpisuje do kolejki pomocniczej
                     int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
                     if (msgid_pomocnicza == -1)
@@ -258,8 +277,6 @@ int main(int argc, char *argv[])
                         exit(1);
                     }
 
-                    // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
-                    char wynik[] = "";
                     msgbuff m;
                     m.mtype = 1;
                     strcat(m.mtext, wynik);
@@ -274,6 +291,8 @@ int main(int argc, char *argv[])
                     break;
                 }
                 }
+
+                close(plik_pomocniczy);
             }
         }
 
