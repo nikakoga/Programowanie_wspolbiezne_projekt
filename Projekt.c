@@ -119,14 +119,38 @@ int main(int argc, char *argv[])
         {
             char *proces;
             char *polecenie;
+            char *czesc_polecenia;
             char *pomocnicza;
             char rozdzielacz[] = " ";
             char terminal[60];
             fgets(terminal, 50, stdin);
             printf("terminal: %s\n", terminal);
+
+            // liczenie ile spacji jest w pliku
+            int ilosc_spacji = 0;
+            for (int i = 0; i < strlen(terminal); i++)
+            {
+                if (terminal[i] == " ")
+                {
+                    ilosc_spacji++;
+                }
+            }
+
+            // w petli robisz od drugiego do przedostatniego rozdzielajac spacjami ale laczac je strcatem
             proces = strtok(terminal, rozdzielacz);
             printf("proces: %s\n", proces);
-            polecenie = strtok(NULL, rozdzielacz);
+
+            for (int i = 0; i < ilosc_spacji - 2; i++)
+            {
+                czesc_polecenia = strtok(NULL, rozdzielacz);
+                polecenie = strcat(polecenie, czesc_polecenia);
+            }
+
+            if (ilosc_spacji == 2) // to jest sytuacja kiedy cale polecenie to np : ls
+            {
+                polecenie = strtok(NULL, rozdzielacz);
+            }
+
             printf("polecenie: %s\n", polecenie);
             pomocnicza = strtok(NULL, rozdzielacz);
             printf("pomocnicza: %s\n", pomocnicza);
