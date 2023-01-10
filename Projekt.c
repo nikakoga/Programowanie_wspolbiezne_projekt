@@ -12,59 +12,59 @@
 #include <errno.h>
 #include <time.h>
 
-char *itoa(int i, char b[])
-{
-    char const digit[] = "0123456789";
-    char *p = b;
-    if (i < 0)
-    {
-        *p++ = '-';
-        i *= -1;
-    }
-    int shifter = i;
-    do
-    { // Move to where representation ends
-        ++p;
-        shifter = shifter / 10;
-    } while (shifter);
-    *p = '\0';
-    do
-    { // Move back, inserting digits as u go
-        *--p = digit[i % 10];
-        i = i / 10;
-    } while (i);
-    return b;
-}
+// char *itoa(int i, char b[]) //ze stackoverflow
+// {
+//     char const digit[] = "0123456789";
+//     char *p = b;
+//     if (i < 0)
+//     {
+//         *p++ = '-';
+//         i *= -1;
+//     }
+//     int shifter = i;
+//     do
+//     { // Move to where representation ends
+//         ++p;
+//         shifter = shifter / 10;
+//     } while (shifter);
+//     *p = '\0';
+//     do
+//     { // Move back, inserting digits as u go
+//         *--p = digit[i % 10];
+//         i = i / 10;
+//     } while (i);
+//     return b;
+// }
+
+// int randomint(int min, int max) //z wiki
+// {
+//     int tmp;
+//     if (max >= min)
+//         max -= min;
+//     else
+//     {
+//         tmp = min - max;
+//         min = max;
+//         max = tmp;
+//     }
+//     if (max)
+//     {
+//         return rand() % max + min;
+//     }
+//     else
+//     {
+//         return min;
+//     }
+
+//     // z geeks for geeks
+//     // rand() % (max - min + 1)) + min
+// }
 
 typedef struct msgbuff
 {
     long mtype;
     char mtext[7];
 } msgbuff;
-
-int randomint(int min, int max)
-{
-    int tmp;
-    if (max >= min)
-        max -= min;
-    else
-    {
-        tmp = min - max;
-        min = max;
-        max = tmp;
-    }
-    if (max)
-    {
-        return rand() % max + min;
-    }
-    else
-    {
-        return min;
-    }
-
-    // z geeks for geeks
-    // rand() % (max - min + 1)) + min
-}
 
 int zwroc_ID(char *user_name)
 {
@@ -108,20 +108,22 @@ int zwroc_ID(char *user_name)
     return ID_kolejki;
 }
 
-void obsluz_macierzysty_proces_kolego()
+void obsluz_macierzysty_proces()
 {
     while (1)
     {
         char *proces;
-        char polecenie[] = "";
+        char *polecenie;
+        char polaczone_polecenie[] = "";
         char *czesc_polecenia;
-        // char *pomocnicza;
+        char *pomocnicza;
         char rozdzielacz[] = " ";
         char terminal[60];
         fgets(terminal, 50, stdin);
         printf("terminal: %s\n", terminal);
 
         // liczenie ile spacji jest w pliku
+
         int ilosc_spacji = 0;
         for (int i = 0; i < strlen(terminal); i++)
         {
@@ -133,23 +135,29 @@ void obsluz_macierzysty_proces_kolego()
 
         printf("ilosc spacji: %d\n", ilosc_spacji);
 
-        // w petli robisz od drugiego do przedostatniego rozdzielajac spacjami ale laczac je strcatem
+        // w petli robie od drugiego do konca rozdzielajac spacjami ale laczac je strcatem
         proces = strtok(terminal, rozdzielacz);
         printf("proces: %s\n", proces);
-        for (int i = 0; i < ilosc_spacji - 1; i++)
+
+        if (ilosc_spacji > 2)
         {
-            czesc_polecenia = strtok(NULL, rozdzielacz);
-            strcat(polecenie, czesc_polecenia);
+            for (int i = 0; i < ilosc_spacji - 2; i++)
+            {
+                czesc_polecenia = strtok(NULL, rozdzielacz);
+                strcat(polaczone_polecenie, czesc_polecenia);
+            }
+            strcpy(polecenie, polaczone_polecenie);
+            printf("polecenie: %s\n", polecenie);
         }
 
-        if (ilosc_spacji == 1) // to jest sytuacja kiedy cale polecenie to np : ls
+        else // to jest sytuacja kiedy cale polecenie to np : ls
         {
-            strcat(polecenie, strtok(NULL, rozdzielacz));
+            polecenie = strtok(NULL, rozdzielacz);
         }
 
         printf("polecenie: %s\n", polecenie);
-        // pomocnicza = strtok(NULL, rozdzielacz);
-        // printf("pomocnicza: %s\n", pomocnicza);
+        pomocnicza = strtok(NULL, rozdzielacz);
+        printf("pomocnicza: %s\n", pomocnicza);
 
         // wyciagamy ID konfiguracyjne dla procesu
         int ID_kolejki_2 = zwroc_ID(proces);
@@ -162,7 +170,7 @@ void obsluz_macierzysty_proces_kolego()
             exit(1);
         }
         // ID pomocniczej kolejki
-        int ID_pomocniczej_kolejki = randomint(100000, 999999);
+        int ID_pomocniczej_kolejki = atoi(pomocnicza);
 
         // otwieram jej kanal komunikacji
         int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
@@ -177,8 +185,7 @@ void obsluz_macierzysty_proces_kolego()
         m.mtype = 1;
         strcat(m.mtext, polecenie);
         strcat(m.mtext, " ");
-        char id_str[1];
-        strcat(m.mtext, itoa(ID_pomocniczej_kolejki, id_str));
+        strcat(m.mtext, pomocnicza);
         printf("tekst w m.text %s\n", m.mtext);
 
         // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
@@ -235,11 +242,11 @@ int main(int argc, char *argv[])
                 perror("Blad odbierania");
                 exit(1);
             }
-            printf("Odebrano: %s\n", m.mtext);
 
             // 2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
             if (rozmiar_komunikatu > 0)
             {
+                printf("Odebrano: %s\n", m.mtext);
                 char terminal[60];
                 strcpy(terminal, m.mtext);
                 printf("proces potomny terminal %s\n", terminal);
@@ -323,7 +330,7 @@ int main(int argc, char *argv[])
     }
     default: // dla macierzystego
     {
-        obsluz_macierzysty_proces_kolego();
+        obsluz_macierzysty_proces();
         break;
     }
     }
