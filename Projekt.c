@@ -97,17 +97,59 @@ int main(int argc, char *argv[])
 
                 char *proces;
                 char *polecenie;
-                char *pomocnicza;
+                // char *pomocnicza;
                 char rozdzielacz[] = " ";
                 proces = strtok(terminal, rozdzielacz);
                 printf("proces: %s\n", proces);
                 polecenie = strtok(NULL, rozdzielacz);
                 printf("polecenie: %s\n", proces);
-                pomocnicza = strtok(NULL, rozdzielacz);
-                printf("pomocnicza: %s\n", proces);
+                // pomocnicza = strtok(NULL, rozdzielacz);
+                // printf("pomocnicza: %s\n", proces);
+                int ID_pomocniczej_kolejki = ; // srand
 
-                // 3. wykonuje polecenie
-                // 4. wynik polecenia wpisuje do kolejki pomocniczej
+                // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
+                int plik_pomocniczy = creat("wyjscie.txt", O_RDWR);
+                if (plik_pomocniczy == -1)
+                {
+                    perror("Blad tworzenia pliku zrodlowego");
+                    exit(1);
+                }
+                dup2(plik_pomocniczy, 1); // teraz pisze do pliku
+
+                switch (fork())
+                {
+                case 0:
+                {
+                    // 3. wykonuje polecenie
+
+                    break;
+                }
+
+                default:
+                {
+                    // 4. wynik polecenia wpisuje do kolejki pomocniczej
+                    int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
+                    if (msgid_pomocnicza == -1)
+                    {
+                        perror("Blad tworzenia pomocniczej kolejki\n");
+                        exit(1);
+                    }
+
+                    // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
+                    msgbuff m;
+                    m.mtype = 1;
+                    strcat(m.mtext, wynik);
+                    printf("tekst w m.text %s\n", m.mtext);
+
+                    // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
+                    if (msgsnd(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+                    {
+                        perror("Wysylanie wyniku nie powiodlo sie\n");
+                        exit(1);
+                    }
+                    break;
+                }
+                }
             }
         }
 
@@ -120,7 +162,7 @@ int main(int argc, char *argv[])
             char *proces;
             char *polecenie;
             char *czesc_polecenia;
-            char *pomocnicza;
+            // char *pomocnicza;
             char rozdzielacz[] = " ";
             char terminal[60];
             fgets(terminal, 50, stdin);
@@ -140,20 +182,20 @@ int main(int argc, char *argv[])
             proces = strtok(terminal, rozdzielacz);
             printf("proces: %s\n", proces);
 
-            for (int i = 0; i < ilosc_spacji - 2; i++)
+            for (int i = 0; i < ilosc_spacji - 1; i++)
             {
                 czesc_polecenia = strtok(NULL, rozdzielacz);
                 polecenie = strcat(polecenie, czesc_polecenia);
             }
 
-            if (ilosc_spacji == 2) // to jest sytuacja kiedy cale polecenie to np : ls
+            if (ilosc_spacji == 1) // to jest sytuacja kiedy cale polecenie to np : ls
             {
                 polecenie = strtok(NULL, rozdzielacz);
             }
 
             printf("polecenie: %s\n", polecenie);
-            pomocnicza = strtok(NULL, rozdzielacz);
-            printf("pomocnicza: %s\n", pomocnicza);
+            // pomocnicza = strtok(NULL, rozdzielacz);
+            // printf("pomocnicza: %s\n", pomocnicza);
 
             // wyciagamy ID konfiguracyjne dla procesu
             int ID_kolejki_2 = zwroc_ID(proces);
@@ -167,7 +209,7 @@ int main(int argc, char *argv[])
             }
 
             // ID pomocniczej kolejki
-            int ID_pomocniczej_kolejki = atoi(pomocnicza);
+            int ID_pomocniczej_kolejki = ;
 
             // otwieram jej kanal komunikacji
             int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
