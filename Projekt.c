@@ -114,8 +114,7 @@ void obsluz_macierzysty_proces()
     {
         char *proces;
         char *polecenie;
-        char polaczone_polecenie[] = "";
-        char *czesc_polecenia;
+        // char polaczone_polecenie[] = "";
         char *pomocnicza;
         char rozdzielacz[] = " ";
         char terminal[60];
@@ -141,12 +140,15 @@ void obsluz_macierzysty_proces()
 
         if (ilosc_spacji > 2)
         {
-            for (int i = 0; i < ilosc_spacji - 2; i++)
+            for (int s = 0; s < ilosc_spacji - 2; s++)
             {
+                char *czesc_polecenia;
                 czesc_polecenia = strtok(NULL, rozdzielacz);
-                strcat(polaczone_polecenie, czesc_polecenia);
+                strcat(polecenie, czesc_polecenia);
+                // TU C MA JAKIS PROBLEM :) BLAD
             }
-            strcpy(polecenie, polaczone_polecenie);
+            printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
+            // strcpy(polecenie, polaczone_polecenie);
             printf("polecenie: %s\n", polecenie);
         }
 
@@ -213,6 +215,105 @@ void obsluz_macierzysty_proces()
     }
 }
 
+void obsluz_potomny_proces(int msgid_1)
+{
+    while (1)
+    {
+        // sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
+        msgbuff m;
+        int rozmiar_komunikatu = 0;
+        printf("UWAGA BEDE SPRAWDZAU ZAPNIJ PASY\n");
+        rozmiar_komunikatu = msgrcv(msgid_1, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
+        if (rozmiar_komunikatu == -1)
+        {
+            perror("Blad odbierania");
+            exit(1);
+        }
+
+        // 2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
+        if (rozmiar_komunikatu > 0)
+        {
+            printf("Odebrano: %s\n", m.mtext);
+            char terminal[60];
+            strcpy(terminal, m.mtext);
+            printf("proces potomny terminal %s\n", terminal);
+
+            // char *proces;
+            char *polecenie;
+            char *pomocnicza;
+            char rozdzielacz[] = " ";
+            // proces = strtok(terminal, rozdzielacz);
+            // printf("proces: %s\n", proces);
+            polecenie = strtok(terminal, rozdzielacz);
+            printf("polecenie: %s\n", polecenie);
+            pomocnicza = strtok(NULL, rozdzielacz);
+            printf("pomocnicza: %s\n", pomocnicza);
+            int ID_pomocniczej_kolejki = atoi(pomocnicza);
+
+            // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
+            int plik_pomocniczy = creat("wyjscie.txt", O_RDWR);
+            if (plik_pomocniczy == -1)
+            {
+                perror("Blad tworzenia pliku na wynik\n");
+                exit(1);
+            }
+
+            switch (fork())
+            {
+            case 0:
+            {
+                dup2(plik_pomocniczy, 1); // teraz pisze do pliku zamiast na wyjscie
+                // 3. wykonuje polecenie
+
+                break;
+            }
+
+            default:
+            {
+                // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
+                int rozmiar = 1000;
+                char *wynik;
+                int ilosc_przeczytanych_bajtow = 0;
+                char tablica_na_przeczytane_litery[rozmiar];
+
+                while ((ilosc_przeczytanych_bajtow = read(plik_pomocniczy, wynik, rozmiar)) > 0)
+                {
+                    strcpy(wynik, tablica_na_przeczytane_litery);
+                }
+
+                if (ilosc_przeczytanych_bajtow == -1)
+                {
+                    printf("Blad czytania pliku z wynikiem\n");
+                }
+
+                // 4. wynik polecenia wpisuje do kolejki pomocniczej
+                int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
+                if (msgid_pomocnicza == -1)
+                {
+                    perror("Blad tworzenia pomocniczej kolejki\n");
+                    exit(1);
+                }
+
+                msgbuff m;
+                m.mtype = 1;
+                strcat(m.mtext, wynik);
+                printf("tekst w m.text %s\n", m.mtext);
+
+                // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
+                if (msgsnd(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+                {
+                    perror("Wysylanie wyniku nie powiodlo sie\n");
+                    exit(1);
+                }
+
+                close(plik_pomocniczy);
+                break;
+            }
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     srand(time(NULL));
@@ -230,102 +331,7 @@ int main(int argc, char *argv[])
     {
     case 0: // dla potomnego
     {
-        while (1)
-        {
-            // sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
-            msgbuff m;
-            int rozmiar_komunikatu = 0;
-            printf("UWAGA BEDE SPRAWDZAU ZAPNIJ PASY\n");
-            rozmiar_komunikatu = msgrcv(msgid_1, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
-            if (rozmiar_komunikatu == -1)
-            {
-                perror("Blad odbierania");
-                exit(1);
-            }
-
-            // 2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
-            if (rozmiar_komunikatu > 0)
-            {
-                printf("Odebrano: %s\n", m.mtext);
-                char terminal[60];
-                strcpy(terminal, m.mtext);
-                printf("proces potomny terminal %s\n", terminal);
-
-                char *proces;
-                char *polecenie;
-                char *pomocnicza;
-                char rozdzielacz[] = " ";
-                proces = strtok(terminal, rozdzielacz);
-                printf("proces: %s\n", proces);
-                polecenie = strtok(NULL, rozdzielacz);
-                printf("polecenie: %s\n", proces);
-                pomocnicza = strtok(NULL, rozdzielacz);
-                printf("pomocnicza: %s\n", proces);
-                int ID_pomocniczej_kolejki = atoi(pomocnicza);
-
-                // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
-                int plik_pomocniczy = creat("wyjscie.txt", O_RDWR);
-                if (plik_pomocniczy == -1)
-                {
-                    perror("Blad tworzenia pliku na wynik\n");
-                    exit(1);
-                }
-
-                switch (fork())
-                {
-                case 0:
-                {
-                    dup2(plik_pomocniczy, 1); // teraz pisze do pliku zamiast na wyjscie
-                    // 3. wykonuje polecenie
-
-                    break;
-                }
-
-                default:
-                {
-                    // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
-                    int rozmiar = 1000;
-                    char *wynik;
-                    int ilosc_przeczytanych_bajtow = 0;
-                    char tablica_na_przeczytane_litery[rozmiar];
-
-                    while ((ilosc_przeczytanych_bajtow = read(plik_pomocniczy, wynik, rozmiar)) > 0)
-                    {
-                        strcpy(wynik, tablica_na_przeczytane_litery);
-                    }
-
-                    if (ilosc_przeczytanych_bajtow == -1)
-                    {
-                        printf("Blad czytania pliku z wynikiem\n");
-                    }
-
-                    // 4. wynik polecenia wpisuje do kolejki pomocniczej
-                    int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
-                    if (msgid_pomocnicza == -1)
-                    {
-                        perror("Blad tworzenia pomocniczej kolejki\n");
-                        exit(1);
-                    }
-
-                    msgbuff m;
-                    m.mtype = 1;
-                    strcat(m.mtext, wynik);
-                    printf("tekst w m.text %s\n", m.mtext);
-
-                    // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
-                    if (msgsnd(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
-                    {
-                        perror("Wysylanie wyniku nie powiodlo sie\n");
-                        exit(1);
-                    }
-                    break;
-                }
-                }
-
-                close(plik_pomocniczy);
-            }
-        }
-
+        obsluz_potomny_proces(msgid_1);
         break;
     }
     default: // dla macierzystego
