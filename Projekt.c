@@ -245,31 +245,34 @@ void obsluz_potomny_proces(int msgid_1)
             // proces = strtok(terminal, rozdzielacz);
             // printf("proces: %s\n", proces);
             polecenie = strtok(terminal, rozdzielacz);
-            printf("polecenie: %s\n", polecenie);
+            printf("odebrano - polecenie: %s\n", polecenie);
             pomocnicza = strtok(NULL, rozdzielacz);
-            printf("pomocnicza: %s\n", pomocnicza);
+            printf("odebrano - pomocnicza: %s\n", pomocnicza);
             int ID_pomocniczej_kolejki = atoi(pomocnicza);
 
             // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
-            int plik_pomocniczy = creat("wyjscie.txt", O_RDWR);
+            int plik_pomocniczy = creat("wyjscie.txt", O_TRUNC | O_WRONLY);
             if (plik_pomocniczy == -1)
             {
                 perror("Blad tworzenia pliku na wynik\n");
                 exit(1);
             }
 
-            switch (fork())
+            pid_t pid = fork();
+            if (pid == 0)
             {
-            case 0:
-            {
-                dup2(plik_pomocniczy, 1); // teraz pisze do pliku zamiast na wyjscie
+                // dup2(plik_pomocniczy, 1); // teraz pisze do pliku zamiast na wyjscie
                 // 3. wykonuje polecenie
-
+                char *args[2];
+                args[0] = polecenie; // dla polecenia z pojedynczym slowem: ls i .... chyba nic wiecej
+                args[1] = NULL;
+                execvp(args[0], args);
                 break;
             }
-
-            default:
+            else
             {
+                int status;
+                waitpid(pid, &status, 0);
                 // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
                 int rozmiar = 1000;
                 char *wynik;
@@ -308,7 +311,6 @@ void obsluz_potomny_proces(int msgid_1)
 
                 close(plik_pomocniczy);
                 break;
-            }
             }
         }
     }
