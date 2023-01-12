@@ -120,39 +120,37 @@ void obsluz_macierzysty_proces()
         fgets(terminal, 50, stdin);
         printf("terminal: %s\n", terminal);
 
-        // // liczenie ile spacji jest w wprowadzonej do terminala rzeczy
-        // int ilosc_spacji = policz_spacje(terminal);
-        // printf("ilosc spacji: %d\n", ilosc_spacji);
+        // liczenie ile spacji jest w wprowadzonej do terminala rzeczy
+        int ilosc_spacji = policz_spacje(terminal);
+        printf("ilosc spacji: %d\n", ilosc_spacji);
 
-        // // w petli robie od drugiego do konca rozdzielajac spacjami ale laczac je strcatem
-        // proces = strtok(terminal, rozdzielacz);
-        // printf("proces: %s\n", proces);
+        // w petli robie od drugiego do konca rozdzielajac spacjami ale laczac je strcatem
+        proces = strtok(terminal, rozdzielacz);
+        printf("proces: %s\n", proces);
 
-        // if (ilosc_spacji > 2)
-        // {
-        //     for (int s = 0; s < ilosc_spacji - 2; s++)
-        //     {
-        //         char *czesc_polecenia;
-        //         czesc_polecenia = strtok(NULL, rozdzielacz);
-        //         strcat(polecenie, czesc_polecenia);
-        //         // TU C MA JAKIS PROBLEM :) BLAD
-        //     }
-        //     printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
-        //     // strcpy(polecenie, polaczone_polecenie);
-        //     printf("polecenie: %s\n", polecenie);
-        // }
+        if (ilosc_spacji > 2)
+        {
+            for (int s = 0; s < ilosc_spacji - 2; s++)
+            {
+                char *czesc_polecenia;
+                czesc_polecenia = strtok(NULL, rozdzielacz);
+                strcat(polecenie, czesc_polecenia);
+                // TU C MA JAKIS PROBLEM :) BLAD
+            }
+            printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
+            // strcpy(polecenie, polaczone_polecenie);
+            printf("polecenie: %s\n", polecenie);
+        }
 
-        // else // to jest sytuacja kiedy cale polecenie to np : ls
-        // {
-        //     polecenie = strtok(NULL, rozdzielacz);
-        // }
+        else // to jest sytuacja kiedy cale polecenie to np : ls
+        {
+            polecenie = strtok(NULL, rozdzielacz);
+        }
 
-        // printf("polecenie: %s\n", polecenie);
-        // pomocnicza = strtok(NULL, rozdzielacz);
-        // printf("pomocnicza: %s\n", pomocnicza);
-        int l;
-        char **podzielone = podziel_tekst(terminal, &l);
-        printf("LICZNIK: %d\nTEKST[0]: %s", l, podzielone[0]);
+        printf("polecenie: %s\n", polecenie);
+        pomocnicza = strtok(NULL, rozdzielacz);
+        printf("pomocnicza: %s\n", pomocnicza);
+
         // wyciagamy ID konfiguracyjne dla procesu
         int ID_kolejki_2 = zwroc_ID(proces);
         // otwieramy jej kanal komunikacji
