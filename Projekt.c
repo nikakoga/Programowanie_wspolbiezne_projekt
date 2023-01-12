@@ -11,54 +11,7 @@
 #include <string.h>
 #include <errno.h>
 #include <time.h>
-
-// char *itoa(int i, char b[]) //ze stackoverflow
-// {
-//     char const digit[] = "0123456789";
-//     char *p = b;
-//     if (i < 0)
-//     {
-//         *p++ = '-';
-//         i *= -1;
-//     }
-//     int shifter = i;
-//     do
-//     { // Move to where representation ends
-//         ++p;
-//         shifter = shifter / 10;
-//     } while (shifter);
-//     *p = '\0';
-//     do
-//     { // Move back, inserting digits as u go
-//         *--p = digit[i % 10];
-//         i = i / 10;
-//     } while (i);
-//     return b;
-// }
-
-// int randomint(int min, int max) //z wiki
-// {
-//     int tmp;
-//     if (max >= min)
-//         max -= min;
-//     else
-//     {
-//         tmp = min - max;
-//         min = max;
-//         max = tmp;
-//     }
-//     if (max)
-//     {
-//         return rand() % max + min;
-//     }
-//     else
-//     {
-//         return min;
-//     }
-
-//     // z geeks for geeks
-//     // rand() % (max - min + 1)) + min
-// }
+#include <stdbool.h>
 
 typedef struct msgbuff
 {
@@ -108,6 +61,52 @@ int zwroc_ID(char *user_name)
     return ID_kolejki;
 }
 
+char **podziel_tekst(char input[], int *licznik)
+{
+    char **wynik = malloc(50 * sizeof(char *));
+    for (int i = 0; i < 50; i++)
+    {
+        wynik[i] = malloc(50 * sizeof(char));
+    }
+    int biezacy_indeks = 0;
+    licznik = malloc(sizeof(int));
+    *licznik = 0;
+    printf("%d", *licznik);
+    for (int i = 0; i < strlen(input); i++)
+    {
+        char biezacy_znak = input[i];
+        bool w_cudzyslowie = false;
+        if (biezacy_znak == '\"')
+        {
+            w_cudzyslowie = !w_cudzyslowie;
+        }
+        else if (!w_cudzyslowie && biezacy_znak == ' ')
+        {
+            biezacy_indeks = 0;
+            *licznik++;
+        }
+        else if (biezacy_znak != '\n') // albo inny konczacy linie, nw
+        {
+            wynik[*licznik][biezacy_indeks++] = biezacy_znak;
+        }
+    }
+    printf("%d", *licznik);
+    return wynik;
+}
+
+int policz_spacje(char terminal[])
+{
+    int ilosc_spacji = 0;
+    for (int i = 0; i < strlen(terminal); i++)
+    {
+        if (terminal[i] == ' ')
+        {
+            ilosc_spacji++;
+        }
+    }
+
+    return ilosc_spacji;
+}
 void obsluz_macierzysty_proces()
 {
     while (1)
@@ -121,46 +120,39 @@ void obsluz_macierzysty_proces()
         fgets(terminal, 50, stdin);
         printf("terminal: %s\n", terminal);
 
-        // liczenie ile spacji jest w pliku
+        // // liczenie ile spacji jest w wprowadzonej do terminala rzeczy
+        // int ilosc_spacji = policz_spacje(terminal);
+        // printf("ilosc spacji: %d\n", ilosc_spacji);
 
-        int ilosc_spacji = 0;
-        for (int i = 0; i < strlen(terminal); i++)
-        {
-            if (terminal[i] == ' ')
-            {
-                ilosc_spacji++;
-            }
-        }
+        // // w petli robie od drugiego do konca rozdzielajac spacjami ale laczac je strcatem
+        // proces = strtok(terminal, rozdzielacz);
+        // printf("proces: %s\n", proces);
 
-        printf("ilosc spacji: %d\n", ilosc_spacji);
+        // if (ilosc_spacji > 2)
+        // {
+        //     for (int s = 0; s < ilosc_spacji - 2; s++)
+        //     {
+        //         char *czesc_polecenia;
+        //         czesc_polecenia = strtok(NULL, rozdzielacz);
+        //         strcat(polecenie, czesc_polecenia);
+        //         // TU C MA JAKIS PROBLEM :) BLAD
+        //     }
+        //     printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
+        //     // strcpy(polecenie, polaczone_polecenie);
+        //     printf("polecenie: %s\n", polecenie);
+        // }
 
-        // w petli robie od drugiego do konca rozdzielajac spacjami ale laczac je strcatem
-        proces = strtok(terminal, rozdzielacz);
-        printf("proces: %s\n", proces);
+        // else // to jest sytuacja kiedy cale polecenie to np : ls
+        // {
+        //     polecenie = strtok(NULL, rozdzielacz);
+        // }
 
-        if (ilosc_spacji > 2)
-        {
-            for (int s = 0; s < ilosc_spacji - 2; s++)
-            {
-                char *czesc_polecenia;
-                czesc_polecenia = strtok(NULL, rozdzielacz);
-                strcat(polecenie, czesc_polecenia);
-                // TU C MA JAKIS PROBLEM :) BLAD
-            }
-            printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
-            // strcpy(polecenie, polaczone_polecenie);
-            printf("polecenie: %s\n", polecenie);
-        }
-
-        else // to jest sytuacja kiedy cale polecenie to np : ls
-        {
-            polecenie = strtok(NULL, rozdzielacz);
-        }
-
-        printf("polecenie: %s\n", polecenie);
-        pomocnicza = strtok(NULL, rozdzielacz);
-        printf("pomocnicza: %s\n", pomocnicza);
-
+        // printf("polecenie: %s\n", polecenie);
+        // pomocnicza = strtok(NULL, rozdzielacz);
+        // printf("pomocnicza: %s\n", pomocnicza);
+        int l;
+        char **podzielone = podziel_tekst(terminal, &l);
+        printf("LICZNIK: %d\nTEKST[0]: %s", l, podzielone[0]);
         // wyciagamy ID konfiguracyjne dla procesu
         int ID_kolejki_2 = zwroc_ID(proces);
         // otwieramy jej kanal komunikacji
@@ -238,17 +230,36 @@ void obsluz_potomny_proces(int msgid_1)
             strcpy(terminal, m.mtext);
             printf("proces potomny terminal %s\n", terminal);
 
-            // char *proces;
+            int ilosc_spacji_w_odebranym_komunikacie = policz_spacje(terminal);
+
             char *polecenie;
             char *pomocnicza;
             char rozdzielacz[] = " ";
-            // proces = strtok(terminal, rozdzielacz);
-            // printf("proces: %s\n", proces);
-            polecenie = strtok(terminal, rozdzielacz);
-            printf("odebrano - polecenie: %s\n", polecenie);
-            pomocnicza = strtok(NULL, rozdzielacz);
-            printf("odebrano - pomocnicza: %s\n", pomocnicza);
-            int ID_pomocniczej_kolejki = atoi(pomocnicza);
+
+            if (ilosc_spacji_w_odebranym_komunikacie > 1)
+            {
+                char *czesc_polecenia;
+                czesc_polecenia = strtok(terminal, rozdzielacz);
+                strcat(polecenie, czesc_polecenia);
+
+                for (int s = 1; s < ilosc_spacji_w_odebranym_komunikacie - 1; s++)
+                {
+                    czesc_polecenia = strtok(NULL, rozdzielacz);
+                    strcat(polecenie, czesc_polecenia);
+                    // TU C MA JAKIS PROBLEM :) BLAD
+                }
+                printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
+                // strcpy(polecenie, polaczone_polecenie);
+                printf("polecenie: %s\n", polecenie);
+                pomocnicza = strtok(NULL, rozdzielacz);
+                printf("pomocnicza: %s\n", pomocnicza);
+            }
+
+            else // to jest sytuacja kiedy cale polecenie to np : ls
+            {
+                polecenie = strtok(terminal, rozdzielacz);
+                pomocnicza = strtok(NULL, rozdzielacz);
+            }
 
             // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
             int plik_pomocniczy = creat("wyjscie.txt", O_TRUNC | O_WRONLY);
@@ -288,6 +299,7 @@ void obsluz_potomny_proces(int msgid_1)
                 {
                     printf("Blad czytania pliku z wynikiem\n");
                 }
+                int ID_pomocniczej_kolejki = atoi(pomocnicza);
 
                 // 4. wynik polecenia wpisuje do kolejki pomocniczej
                 int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
