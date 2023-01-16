@@ -13,11 +13,18 @@
 #include <time.h>
 #include <stdbool.h>
 
-typedef struct msgbuff
+typedef struct msg_polecenie
 {
     long mtype;
-    char mtext[7];
-} msgbuff;
+    char pomocnicza[7];
+    char polecenie[60];
+} msg_polecenie;
+
+typedef struct msg_wynik
+{
+    long mtype;
+    char wynik[2048];
+} msg_wynik;
 
 int zwroc_ID(char *user_name)
 {
@@ -112,44 +119,37 @@ void obsluz_macierzysty_proces()
     while (1)
     {
         char *proces;
-        char *polecenie;
-        // char polaczone_polecenie[] = "";
-        char *pomocnicza;
         char rozdzielacz[] = " ";
-        char terminal[60];
+        char terminal[100];
+        char *polecenie = terminal;
+        char *pomocnicza;
+
         fgets(terminal, 50, stdin);
         printf("terminal: %s\n", terminal);
 
-        // liczenie ile spacji jest w wprowadzonej do terminala rzeczy
-        int ilosc_spacji = policz_spacje(terminal);
-        printf("ilosc spacji: %d\n", ilosc_spacji);
-
         // w petli robie od drugiego do konca rozdzielajac spacjami ale laczac je strcatem
-        proces = strtok(terminal, rozdzielacz);
+        // używam strtok_r aby mieć dostęp do pozostałej części inputa
+        proces = strtok_r(polecenie, rozdzielacz, &polecenie);
         printf("proces: %s\n", proces);
 
-        if (ilosc_spacji > 2)
-        {
-            for (int s = 0; s < ilosc_spacji - 2; s++)
-            {
-                char *czesc_polecenia;
-                czesc_polecenia = strtok(NULL, rozdzielacz);
-                strcat(polecenie, czesc_polecenia);
-                // TU C MA JAKIS PROBLEM :) BLAD
-            }
-            printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
-            // strcpy(polecenie, polaczone_polecenie);
-            printf("polecenie: %s\n", polecenie);
-        }
+        char *token;
+        char *kopia = malloc(sizeof(char) * strlen(polecenie));
+        strcpy(kopia, polecenie);
 
-        else // to jest sytuacja kiedy cale polecenie to np : ls
+        while ((token = strtok_r(kopia, rozdzielacz, &kopia)) != NULL)
         {
-            polecenie = strtok(NULL, rozdzielacz);
-        }
+            pomocnicza = token;
+        };
 
+        // \0 - koniec stringa
+        // obcinam w ten sposób niepotrzebne znaki na końcu
+        pomocnicza[strlen(pomocnicza) - 1] = '\0';
+        polecenie[strlen(polecenie) - strlen(pomocnicza) - 1] = '\0';
         printf("polecenie: %s\n", polecenie);
-        pomocnicza = strtok(NULL, rozdzielacz);
         printf("pomocnicza: %s\n", pomocnicza);
+
+        // printf("polecenie: %s\npomocnicza: %s\n", polecenie, pomocnicza);
+        // printf("polecenie strlen: %d\npomocnicza strlen: %d\n", strlen(polecenie), strlen(pomocnicza));
 
         // wyciagamy ID konfiguracyjne dla procesu
         int ID_kolejki_2 = zwroc_ID(proces);
@@ -173,15 +173,15 @@ void obsluz_macierzysty_proces()
             exit(1);
         }
 
-        msgbuff m;
+        msg_polecenie m;
         m.mtype = 1;
-        strcat(m.mtext, polecenie);
-        strcat(m.mtext, " ");
-        strcat(m.mtext, pomocnicza);
-        printf("tekst w m.text %s\n", m.mtext);
+        strcpy(m.polecenie, polecenie);
+        strcpy(m.pomocnicza, pomocnicza);
+        printf("tekst w m.pomocnicza: %s\n", m.pomocnicza);
+        printf("tekst w m.polecenie: %s\n", m.polecenie);
 
         // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
-        if (msgsnd(msgid_2, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
+        if (msgsnd(msgid_2, &m, (sizeof(msg_polecenie) - sizeof(long)), 0) == -1)
         {
             perror("Wysylanie polecenia nie powiodlo sie\n");
             exit(1);
@@ -191,7 +191,8 @@ void obsluz_macierzysty_proces()
         int rozmiar_komunikatu_z_pomocniczej = 0;
         printf("rozmiar komunikatu z pomocniczej %d\n", rozmiar_komunikatu_z_pomocniczej);
 
-        rozmiar_komunikatu_z_pomocniczej = msgrcv(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
+        msg_wynik w;
+        rozmiar_komunikatu_z_pomocniczej = msgrcv(msgid_pomocnicza, &w, (sizeof(msg_wynik) - sizeof(long)), 1, 0);
         if (rozmiar_komunikatu_z_pomocniczej == -1)
         {
             perror("Blad odbierania");
@@ -200,7 +201,7 @@ void obsluz_macierzysty_proces()
         // odczytujemy wynik polecenia z parametru #2 wykonanego w procesie z parametru #1
         if (rozmiar_komunikatu_z_pomocniczej > 0)
         {
-            printf("Odebrano: %s", m.mtext);
+            printf("Odebrano: %s", w.wynik);
         }
     }
 }
@@ -210,10 +211,10 @@ void obsluz_potomny_proces(int msgid_1)
     while (1)
     {
         // sprawdzam kolejkę dla mojego procesu (np. tutaj odpalony był usr1 więc sprawdzam czy inny proces tu cos nie wpisal)
-        msgbuff m;
+        msg_polecenie m;
         int rozmiar_komunikatu = 0;
         printf("UWAGA BEDE SPRAWDZAU ZAPNIJ PASY\n");
-        rozmiar_komunikatu = msgrcv(msgid_1, &m, (sizeof(msgbuff) - sizeof(long)), 1, 0);
+        rozmiar_komunikatu = msgrcv(msgid_1, &m, (sizeof(msg_polecenie) - sizeof(long)), 1, 0);
         if (rozmiar_komunikatu == -1)
         {
             perror("Blad odbierania");
@@ -223,105 +224,79 @@ void obsluz_potomny_proces(int msgid_1)
         // 2. jak coś jest to wczytuje polecenie i nazwe kolejki pomocniczej - inaczej petla leci od poczatku
         if (rozmiar_komunikatu > 0)
         {
-            printf("Odebrano: %s\n", m.mtext);
-            char terminal[60];
-            strcpy(terminal, m.mtext);
-            printf("proces potomny terminal %s\n", terminal);
+            printf("Odebrano m.pomocnicza: %s\n", m.pomocnicza);
+            printf("Odebrano m.polecenie: %s\n", m.polecenie);
 
-            int ilosc_spacji_w_odebranym_komunikacie = policz_spacje(terminal);
+            int pipefd[2];
 
-            char *polecenie;
-            char *pomocnicza;
-            char rozdzielacz[] = " ";
+            pipe(pipefd);
+            pid_t pid = fork();
 
-            if (ilosc_spacji_w_odebranym_komunikacie > 1)
+            if (pid == 0)
             {
-                char *czesc_polecenia;
-                czesc_polecenia = strtok(terminal, rozdzielacz);
-                strcat(polecenie, czesc_polecenia);
+                // przekierowanie wyjscia procesu na stdout
+                close(pipefd[0]);
+                dup2(pipefd[1], STDOUT_FILENO);
 
-                for (int s = 1; s < ilosc_spacji_w_odebranym_komunikacie - 1; s++)
+                char *polecenie[50];
+                char delimiter[] = " \n";
+                char *buffer = strtok(m.polecenie, delimiter);
+                polecenie[0] = buffer;
+                int i = 0;
+                for (i = 1; buffer != NULL; i++)
                 {
-                    czesc_polecenia = strtok(NULL, rozdzielacz);
-                    strcat(polecenie, czesc_polecenia);
-                    // TU C MA JAKIS PROBLEM :) BLAD
+                    buffer = strtok(NULL, delimiter);
+                    polecenie[i] = buffer;
                 }
-                printf("DZIALA W CALEJ PETLI ZE STRTOK\n");
-                // strcpy(polecenie, polaczone_polecenie);
-                printf("polecenie: %s\n", polecenie);
-                pomocnicza = strtok(NULL, rozdzielacz);
-                printf("pomocnicza: %s\n", pomocnicza);
+
+                execvp(polecenie[0], polecenie);
+            }
+            close(pipefd[1]);
+            fcntl(pipefd[0], F_SETFL, fcntl(pipefd[0], F_GETFL) | O_NONBLOCK);
+
+            int child_process_output_fd = pipefd[0];
+
+            int status;
+            waitpid(pid, &status, 0);
+            printf("Status procesu wykonujacego polecenie: %d\n", status);
+            int rozmiar = 1000;
+            char *wynik;
+            int ilosc_przeczytanych_bajtow = 0;
+            char tablica_na_przeczytane_litery[rozmiar];
+
+            // czytam z deskryptora procseu potomnego
+            while ((ilosc_przeczytanych_bajtow = read(child_process_output_fd, wynik, rozmiar)) > 0)
+            {
+                strcpy(wynik, tablica_na_przeczytane_litery);
             }
 
-            else // to jest sytuacja kiedy cale polecenie to np : ls
+            if (ilosc_przeczytanych_bajtow == -1)
             {
-                polecenie = strtok(terminal, rozdzielacz);
-                pomocnicza = strtok(NULL, rozdzielacz);
+                printf("Blad czytania wyniku procesu\n");
             }
+            int ID_pomocniczej_kolejki = atoi(m.pomocnicza);
 
-            // tworze plik ktory bedzie zapisywac rzeczy z wyjscia ktore to przekaze do kolejki komunikatow
-            int plik_pomocniczy = creat("wyjscie.txt", O_TRUNC | O_WRONLY);
-            if (plik_pomocniczy == -1)
+            // 4. wynik polecenia wpisuje do kolejki pomocniczej
+            int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
+            if (msgid_pomocnicza == -1)
             {
-                perror("Blad tworzenia pliku na wynik\n");
+                perror("Blad tworzenia pomocniczej kolejki\n");
                 exit(1);
             }
 
-            pid_t pid = fork();
-            if (pid == 0)
+            msg_wynik w;
+            w.mtype = 1;
+            strcpy(w.wynik, wynik);
+            printf("tekst w w.wynik %s\n", w.wynik);
+
+            // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
+            if (msgsnd(msgid_pomocnicza, &w, (sizeof(msg_wynik) - sizeof(long)), 0) == -1)
             {
-                // dup2(plik_pomocniczy, 1); // teraz pisze do pliku zamiast na wyjscie
-                // 3. wykonuje polecenie
-                char *args[2];
-                args[0] = polecenie; // dla polecenia z pojedynczym slowem: ls i .... chyba nic wiecej
-                args[1] = NULL;
-                execvp(args[0], args);
-                break;
+                perror("Wysylanie wyniku nie powiodlo sie\n");
+                exit(1);
             }
-            else
-            {
-                int status;
-                waitpid(pid, &status, 0);
-                // do zmiennej wynik zczytuje to co jest w pliku "wyjscie.txt"
-                int rozmiar = 1000;
-                char *wynik;
-                int ilosc_przeczytanych_bajtow = 0;
-                char tablica_na_przeczytane_litery[rozmiar];
 
-                while ((ilosc_przeczytanych_bajtow = read(plik_pomocniczy, wynik, rozmiar)) > 0)
-                {
-                    strcpy(wynik, tablica_na_przeczytane_litery);
-                }
-
-                if (ilosc_przeczytanych_bajtow == -1)
-                {
-                    printf("Blad czytania pliku z wynikiem\n");
-                }
-                int ID_pomocniczej_kolejki = atoi(pomocnicza);
-
-                // 4. wynik polecenia wpisuje do kolejki pomocniczej
-                int msgid_pomocnicza = msgget(ID_pomocniczej_kolejki, IPC_CREAT | 0640);
-                if (msgid_pomocnicza == -1)
-                {
-                    perror("Blad tworzenia pomocniczej kolejki\n");
-                    exit(1);
-                }
-
-                msgbuff m;
-                m.mtype = 1;
-                strcat(m.mtext, wynik);
-                printf("tekst w m.text %s\n", m.mtext);
-
-                // wysylam do kolejki od zczytanego procesu to co wprowadzono w terminal
-                if (msgsnd(msgid_pomocnicza, &m, (sizeof(msgbuff) - sizeof(long)), 0) == -1)
-                {
-                    perror("Wysylanie wyniku nie powiodlo sie\n");
-                    exit(1);
-                }
-
-                close(plik_pomocniczy);
-                break;
-            }
+            break;
         }
     }
 }
@@ -339,7 +314,8 @@ int main(int argc, char *argv[])
     }
     printf("msgid %d\n", msgid_1);
 
-    switch (fork())
+    pid_t pid = fork();
+    switch (pid)
     {
     case 0: // dla potomnego
     {
@@ -348,6 +324,7 @@ int main(int argc, char *argv[])
     }
     default: // dla macierzystego
     {
+        printf("PID POTOMNEGO: %d\n", pid);
         obsluz_macierzysty_proces();
         break;
     }
