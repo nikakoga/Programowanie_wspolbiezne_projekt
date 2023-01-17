@@ -234,41 +234,40 @@ void obsluz_potomny_proces(int msgid_1)
 
             if (pid == 0)
             {
-                // przekierowanie wyjscia procesu na stdout
-                close(pipefd[0]);
-                dup2(pipefd[1], STDOUT_FILENO);
-
                 char *polecenie[50];
                 char delimiter[] = " \n";
                 char *buffer = strtok(m.polecenie, delimiter);
                 polecenie[0] = buffer;
                 int i = 0;
+                printf("%s\n", polecenie[0]);
                 for (i = 1; buffer != NULL; i++)
                 {
                     buffer = strtok(NULL, delimiter);
                     polecenie[i] = buffer;
+                    printf("%s\n", polecenie[i]);
                 }
 
+                // przekierowanie wyjscia procesu na stdout
+                close(pipefd[0]);
+                dup2(pipefd[1], STDOUT_FILENO);
                 execvp(polecenie[0], polecenie);
             }
             close(pipefd[1]);
-            fcntl(pipefd[0], F_SETFL, fcntl(pipefd[0], F_GETFL) | O_NONBLOCK);
-
-            int child_process_output_fd = pipefd[0];
 
             int status;
             waitpid(pid, &status, 0);
             printf("Status procesu wykonujacego polecenie: %d\n", status);
             int rozmiar = 1000;
-            char *wynik;
+            char wynik[8192];
             int ilosc_przeczytanych_bajtow = 0;
             char tablica_na_przeczytane_litery[rozmiar];
 
             // czytam z deskryptora procseu potomnego
-            while ((ilosc_przeczytanych_bajtow = read(child_process_output_fd, wynik, rozmiar)) > 0)
+            while ((ilosc_przeczytanych_bajtow = read(pipefd[0], wynik, rozmiar)) > 0)
             {
                 strcpy(wynik, tablica_na_przeczytane_litery);
             }
+            close(pipefd[0]);
 
             if (ilosc_przeczytanych_bajtow == -1)
             {
