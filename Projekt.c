@@ -68,52 +68,25 @@ int zwroc_ID(char *user_name)
     return ID_kolejki;
 }
 
-char **podziel_tekst(char input[], int *licznik)
+void exec_pipe_tylko_pisanie(char *polecenie[], int pipe_fd[])
 {
-    char **wynik = malloc(50 * sizeof(char *));
-    for (int i = 0; i < 50; i++)
-    {
-        wynik[i] = malloc(50 * sizeof(char));
-    }
-    int biezacy_indeks = 0;
-    licznik = malloc(sizeof(int));
-    *licznik = 0;
-    printf("%d", *licznik);
-    for (int i = 0; i < strlen(input); i++)
-    {
-        char biezacy_znak = input[i];
-        bool w_cudzyslowie = false;
-        if (biezacy_znak == '\"')
-        {
-            w_cudzyslowie = !w_cudzyslowie;
-        }
-        else if (!w_cudzyslowie && biezacy_znak == ' ')
-        {
-            biezacy_indeks = 0;
-            *licznik++;
-        }
-        else if (biezacy_znak != '\n') // albo inny konczacy linie, nw
-        {
-            wynik[*licznik][biezacy_indeks++] = biezacy_znak;
-        }
-    }
-    printf("%d", *licznik);
-    return wynik;
+    close(pipe_fd[0]);    // zamykam czytanie bo pisze
+    close(STDOUT_FILENO); // zamykam wyjscie
+    dup(pipe_fd[1]);      // wyjscie to pipe
+    execvp(polecenie[0], polecenie);
 }
 
-int policz_spacje(char terminal[])
+void exec_pipe_czytanie_pisanie(char *polecenie[], int pipe_fd[])
 {
-    int ilosc_spacji = 0;
-    for (int i = 0; i < strlen(terminal); i++)
-    {
-        if (terminal[i] == ' ')
-        {
-            ilosc_spacji++;
-        }
-    }
-
-    return ilosc_spacji;
+    close(STDIN_FILENO);  // zamykam wejscie
+    dup(pipe_fd[0]);      // wejscie to pipe
+    close(STDOUT_FILENO); // zamykam wyjscie
+    dup(pipe_fd[1]);      // wyjscie to pipe
+    close(pipe_fd[1]);    // zamykam pisanie
+    close(pipe_fd[0]);    // zamykam czytanie
+    execvp(polecenie[0], polecenie);
 }
+
 void obsluz_macierzysty_proces()
 {
     while (1)
@@ -133,12 +106,14 @@ void obsluz_macierzysty_proces()
         // printf("proces: %s\n", proces);
 
         char *token;
+        printf("Polecenie %s\n", polecenie);
         char *kopia = malloc(sizeof(char) * strlen(polecenie));
         strcpy(kopia, polecenie);
+        // printf("Kopia polecenia %s\n", kopia);
 
         while ((token = strtok_r(kopia, rozdzielacz, &kopia)) != NULL)
         {
-            pomocnicza = token;
+            pomocnicza = token; // przechodze przez cala kopie i to co sie ustawi na koncu to nr kolejki pomocniczej
         };
 
         // \0 - koniec stringa
@@ -236,28 +211,86 @@ void obsluz_potomny_proces(int msgid_1)
             if (pid == 0)
             {
                 char *polecenie[50];
-                char delimiter[] = " \n";
+                char delimiter[] = " ";
                 char *buffer = strtok(m.polecenie, delimiter);
                 polecenie[0] = buffer;
                 int i = 0;
                 printf("%s\n", polecenie[0]);
-                for (i = 1; buffer != NULL; i++)
+                // printf("\n\nLINIA 212\n");
+                int licznik_pipe = 0;
+                i = 0;
+
+                while (buffer != NULL)
                 {
                     buffer = strtok(NULL, delimiter);
+                    perror("STR TOK PROBLEMY\n");
                     polecenie[i] = buffer;
-                    // printf("%s\n", polecenie[i]);
+                    i++;
+
+                    if (strcmp(buffer, "|") == 0) // jesli znajde pipe
+                    {
+                        printf("Znalazlam pipe\n");
+                        licznik_pipe++;
+                        printf("Ilosc pipe %d\n", licznik_pipe);
+                        polecenie[i + 1] = NULL; // bo na koncu dla execvp musi byc null
+
+                        if (licznik_pipe == 1) // bo tu tylko pisze do pipe
+                        {
+                            printf("Jestem w pierwszym execu\n");
+                            if (fork == 0) // potomny
+                            {
+                                exec_pipe_tylko_pisanie(polecenie, pipefd);
+                            }
+                            i = 0; // zeruje i zeby zapisywac od nowa tablice ktora podam do nastepnego execvp
+                        }
+
+                        else // jesli znajde kolejny pipe
+                        {
+                            printf("Jestem w kolejnym execu\n");
+                            if (fork == 0) // potomny
+                            {
+                                exec_pipe_czytanie_pisanie(polecenie, pipefd); // czytam i pisze do pipe
+                            }
+                            i = 0; ////zeruje i zeby zapisywac od nowa tablice ktora podam do nastepnego execvp
+                        }
+                    }
+                    perror("przypisanie");
+                    // problem byl tutaj bo na koncu jest NULL no bo musi byc dla execvp
+                    // printowanie NULL wykrzaczalo caly program :)
+                    //  printf("%s\n", polecenie[i]);
+                    //  perror("polecenie[i]\n");
+                }
+                if (licznik_pipe > 0) // jesli byly pipe to musze zajac sie tym co jest za ostatnim |
+                {
+                    printf("Przede mna ostatni exec\n");
+                    if (fork == 0) // trzeba wykonac to co za pipem
+                    {
+                        exec_pipe_czytanie_pisanie(polecenie, pipefd); // czytam i pisze do pipe
+                    }
+                }
+                if (licznik_pipe == 0) // jesli nie bylo pipe to robie execa gdzie TYLKO pisze do pipe
+                {
+                    // tu bez forka
+                    printf("Nie bylo zadnego pipe\n");
+                    exec_pipe_tylko_pisanie(polecenie, pipefd);
                 }
 
-                // przekierowanie wyjscia procesu na stdout
-                close(pipefd[0]);
-                close(STDOUT_FILENO);
-                dup(pipefd[1]);
-                execvp(polecenie[0], polecenie);
+                // pisze wiec zamykam do czytania
+                // close(pipefd[0]);
+
+                // int deskryptor = open("proba.txt", O_RDWR | O_CREAT | 0644);
+                // perror("tworzenie pliku");
+
+                // dup2(1, pipefd[1]); // teraz pisze do potoku a nie do terminala
+                // dup2(deskryptor, STDOUT_FILENO);
+                // execvp(polecenie[0], polecenie);
+                perror("exec sie nie wykonal");
             }
 
-            close(pipefd[1]);
+            close(pipefd[1]); // czytam wiec zamykam do pisania
+
             int status;
-            waitpid(pid, &status, 0);
+            waitpid(pid, &status, 0); // zeby wiedziec czy proces potomny sie zrealizowal
             printf("Status procesu wykonujacego polecenie: %d\n", status);
             int rozmiar = 1000;
             char wynik[8192];
@@ -316,7 +349,7 @@ int main(int argc, char *argv[])
     }
     // printf("msgid %d\n", msgid_1);
 
-    pid_t pid = fork();
+    pid_t pid = fork(); // pid_t zeby moc sprawdzac czy proces potomny sie nie wykrzacza
     switch (pid)
     {
     case 0: // dla potomnego
