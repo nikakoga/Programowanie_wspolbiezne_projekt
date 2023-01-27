@@ -113,7 +113,7 @@ void obsluz_macierzysty_proces()
 
         while ((token = strtok_r(kopia, rozdzielacz, &kopia)) != NULL)
         {
-            pomocnicza = token; // przechodze przez cala kopie i to co sie ustawi na koncu to nr kolejki pomocniczej
+            pomocnicza = token; // przechodze przez cala kopie caly czas nadpisujac pomocnicza wiec to co sie ustawi na koncu to nr kolejki pomocniczej
         };
 
         // \0 - koniec stringa
